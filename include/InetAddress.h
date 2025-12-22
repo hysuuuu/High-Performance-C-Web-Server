@@ -23,6 +23,11 @@ public:
     InetAddress(const char* ip, uint16_t port);
     ~InetAddress() = default;
 
+    // Set addr for accept
+    void set_addr(sockaddr_in addr) {
+        addr_ = addr;
+    }
+
     // Getter function
     const sockaddr_in* get_addr() const {
         return &addr_;
