@@ -12,8 +12,27 @@ else()
     add_compile_options(-Wall -Wextra)
 endif()
 
-include_directories(include)
+# Library for core socket functionality
+add_library(socket_lib
+    src/InetAddress.cpp
+    src/Socket.cpp
+)
+target_include_directories(socket_lib PUBLIC include)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+# Main server executable
+add_executable(server src/main.cpp)
+target_link_libraries(server PRIVATE socket_lib)
 
-add_executable(server ${SOURCES})
+# Testing
+find_package(Threads REQUIRED)
+enable_testing()
+
+file(GLOB TEST_SOURCES "tests/*.cpp")
+message(STATUS "test files: ${TEST_SOURCES}")
+# Helper function to add tests
+foreach(test_src ${TEST_SOURCES})
+    get_filename_component(test_name ${test_src} NAME_WE)
+    add_executable(${test_name} ${test_src})
+    target_link_libraries(${test_name} PRIVATE socket_lib Threads::Threads)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+endforeach()
