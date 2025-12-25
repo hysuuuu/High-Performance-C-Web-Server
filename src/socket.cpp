@@ -3,6 +3,7 @@
 #include <unistd.h>     
 #include <fcntl.h>    
 #include <cstring>       
+#include <fcntl.h>
 
 Socket::Socket() : fd_(-1) {
     fd_ = socket(AF_INET, SOCK_STREAM, 0);
@@ -53,4 +54,8 @@ int Socket::accept(InetAddress* addr) {
     }
 
     return clientSocket;
+}
+
+void Socket::set_non_blocking() {
+    fcntl(fd_, F_SETFL, fcntl(fd_, F_GETFL) | O_NONBLOCK);
 }
