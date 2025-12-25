@@ -1,54 +1,73 @@
 #include <iostream>
-#include "InetAddress.h"
+#include <unistd.h>
+#include <vector>
+#include <fcntl.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
+
 #include "Socket.h"
-#include <unistd.h> // 為了使用 close()
+#include "Epoll.h"
+
+const int PORT = 8888;
 
 int main() {
-    // 1. 建立 Server 地址 (房東)
-    // 監聽 8888 port，IP 設為 0.0.0.0 (代表接收所有網卡的連線)
-    InetAddress serverAddr("0.0.0.0", 8888);
+    // Create Server Address
+    // Listen on port 8888, IP 0.0.0.0 (accept connections from any network interface)
+    InetAddress serverAddr("0.0.0.0", PORT);
     
-    // 2. 建立 Socket (手機)
-    Socket servSock;
-    
-    // 3. 綁定地址 (插上 SIM 卡)
+    // Create Socket
+    Socket servSock;    
+    servSock.set_non_blocking();
+
     servSock.bind(serverAddr);
-    
-    // 4. 開始監聽 (開機待機)
-    servSock.listen();
-    
-    std::cout << "Server is listening on port 8888..." << std::endl;
+    servSock.listen();    
+    std::cout << "Server is listening on port " << PORT << " ..." << std::endl;
 
-    // 5. 進入無窮迴圈接客
+    // Create Epoll
+    Epoll epoll;
+    epoll.add_fd(servSock.get_fd(), EPOLLIN | EPOLLET);
+    
+    // Enter infinite loop to accept connections
     while (true) {
-        // 準備一個空的地址來裝客人的資料
-        InetAddress clientAddr("0.0.0.0", 0); // 這裡的參數隨便填，反正會被覆蓋
+        // Prepare an empty address to store client info
+        InetAddress clientAddr("0.0.0.0", 0); // Parameters here don't matter, they will be overwritten
         
-        // 阻塞在這裡，直到有人連線
-        int clientFd = servSock.accept(&clientAddr);
-        
-        if (clientFd != -1) {
-            std::cout << "Connection successful!" << std::endl;
-            
-            // 測試看看有沒有抓到 IP
-            // (這需要我們去 InetAddress 加一個 getIp()，如果還沒寫沒關係，先略過)
-            std::cout << "Client IP: " << inet_ntoa(clientAddr.get_addr()->sin_addr) << std::endl;
-            
-            char buffer[1024];
-            // 這裡會發生阻塞！因為 Client 睡了 1 秒才送資料
-            // Server 必須在這裡傻等 1 秒，無法處理其他人的連線
-            int readBytes = read(clientFd, buffer, sizeof(buffer)); 
-            if(readBytes > 0){
-                std::cout << "Received: " << buffer << std::endl;
+        std::vector<epoll_event> events = epoll.poll(-1);
+
+        for (auto event : events) {            
+            if (event.data.fd == servSock.get_fd()) {
+                int clientFd = servSock.accept(&clientAddr);
+                if (clientFd != -1) {
+                    std::cout << "Connection successful!" << std::endl;
+
+                    // Set client to non-blocking mode
+                    fcntl(clientFd, F_SETFL, fcntl(clientFd, F_GETFL) | O_NONBLOCK);
+                    epoll.add_fd(clientFd, EPOLLIN | EPOLLET);
+                }                
+                std::cout << "Client IP: " << inet_ntoa(clientAddr.get_addr()->sin_addr) << std::endl;
+            } else {
+                int clientFd = event.data.fd;
+                char buffer[1024];
+
+                int readBytes = read(clientFd, buffer, sizeof(buffer)); 
+                if (readBytes > 0){
+                    std::cout << "Received: " << buffer << std::endl;
+                    
+                    // Simple greeting (write to socket)
+                    const char* hello = "Hello from Server!\n";
+                    write(clientFd, hello, sizeof(strlen(hello))); // Simple write test
+                } else if (readBytes == 0) {
+                    // Close client connection and remove from epoll
+                    std::cout << "Client disconnected.";
+                    epoll.remove_fd(clientFd);      
+                    close(clientFd);     
+                } else if (readBytes == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+                    perror("Read error");                    
+                    epoll.remove_fd(clientFd);
+                    close(clientFd);   
+                }       
             }
-            // ======
-
-            // 簡單打個招呼 (寫入 socket)
-            const char* hello = "Hello from C++ Server!\n";
-            write(clientFd, hello, sizeof(hello)); // 簡單的寫入測試
-
-            // 關閉這個客人的連線 (因為我們只是測試，講一句話就掛電話)
-            close(clientFd);
         }
     }
 

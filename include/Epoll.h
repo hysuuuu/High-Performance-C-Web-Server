@@ -29,6 +29,7 @@ public:
     ~Epoll();
 
     void add_fd(int fd, uint32_t op);
+    void remove_fd(int fd);
     std::vector<epoll_event> poll(int timeout);
 
     // Getter function

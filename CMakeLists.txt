@@ -16,6 +16,7 @@ endif()
 add_library(socket_lib
     src/InetAddress.cpp
     src/Socket.cpp
+    src/Epoll.cpp
 )
 target_include_directories(socket_lib PUBLIC include)
 

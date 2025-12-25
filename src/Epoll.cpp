@@ -34,8 +34,21 @@ void Epoll::add_fd(int fd, uint32_t op) {
 
     int ret = epoll_ctl(epfd_, EPOLL_CTL_ADD, fd, &ev);
     if (ret == -1) {
-        perror("Epoll ctl error");
-        throw std::runtime_error("Epoll ctl failed.");
+        perror("Epoll add error");
+        throw std::runtime_error("Epoll add failed.");
+    }
+}
+
+void Epoll::remove_fd(int fd) {
+    if (fd == -1) {
+        perror("Epoll fd error");
+        throw std::runtime_error("Epoll fd error.");
+    }
+
+    int ret = epoll_ctl(epfd_, EPOLL_CTL_DEL, fd, NULL);
+    if (ret == -1) {
+        perror("Epoll del error");
+        throw std::runtime_error("Epoll del failed.");
     }
 }
 
