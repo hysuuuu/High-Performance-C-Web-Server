@@ -4,11 +4,11 @@
 #include <cstdint>
 #include <functional>
 
-class Epoll;
-
+class Eventloop;
 class Channel {
 private:
-    Epoll* epoll_;
+    // Epoll* epoll_;
+    Eventloop* loop_;
     int fd_;
     uint32_t events_;   // Events sent to epoll
     uint32_t revents_;  // Events recieved from epoll
@@ -17,7 +17,7 @@ private:
     std::function<void()> write_callback_;
 
 public:
-    Channel(Epoll* epoll, int fd) : epoll_(epoll), fd_(fd), events_(0), revents_(0) {};
+    Channel(Eventloop* loop, int fd) : loop_(loop), fd_(fd), events_(0), revents_(0) {};
     ~Channel() = default;
 
     void enable_reading();

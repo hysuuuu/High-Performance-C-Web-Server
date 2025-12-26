@@ -18,6 +18,7 @@ add_library(socket_lib
     src/Socket.cpp
     src/Epoll.cpp
     src/Channel.cpp
+    src/Eventloop.cpp
 )
 target_include_directories(socket_lib PUBLIC include)
 

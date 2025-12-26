@@ -1,9 +1,11 @@
+#include <sys/epoll.h>
+
 #include "Channel.h"
-#include "Epoll.h"
+#include "Eventloop.h"
 
 void Channel::enable_reading() {
     set_events(EPOLLIN | EPOLLET);
-    epoll_->add_fd(fd_, events_);
+    loop_->update_channel(this);
 }
 
 void Channel::handle_event() {
