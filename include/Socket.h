@@ -3,8 +3,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "InetAddress.h"
-
+class InetAddress;
 class Socket {
 private:
     int fd_;

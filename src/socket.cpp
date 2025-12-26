@@ -5,6 +5,8 @@
 #include <cstring>       
 #include <fcntl.h>
 
+#include "InetAddress.h"
+
 Socket::Socket() : fd_(-1) {
     fd_ = socket(AF_INET, SOCK_STREAM, 0);
     if (fd_ == -1) {
