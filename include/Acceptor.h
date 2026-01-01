@@ -9,6 +9,20 @@ class InetAddress;
 class Channel;
 class Eventloop;
 
+/**
+ * @class Acceptor
+ * @brief Handles new TCP connection requests (The Receptionist).
+ *
+ * The Acceptor class encapsulates the listening socket. It is responsible for
+ * the initial steps of a connection: socket creation, binding, listening, 
+ * and accepting.
+ *
+ * Key Responsibilities:
+ * 1. Encapsulates socket(), bind(), and listen() system calls.
+ * 2. Uses a Channel to monitor the listening socket for incoming connections (EPOLLIN).
+ * 3. Executes accept() to obtain the client file descriptor (fd).
+ * 4. Triggers a callback to notify the Server to create a new Connection.
+ */
 class Acceptor {
 private:
     Socket sock_;    

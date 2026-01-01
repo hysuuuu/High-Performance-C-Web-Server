@@ -7,6 +7,21 @@ class Channel;
 class Eventloop;
 class Server;
 
+/**
+ * @class Connection
+ * @brief Encapsulates the state and processing logic of a single TCP connection (The Waiter).
+ *
+ * Each connected client corresponds to one Connection object.
+ * This class uses RAII to manage resources: the Socket and Channel are created 
+ * upon construction and cleaned up upon destruction.
+ *
+ * Key Responsibilities:
+ * 1. Manages the client's Socket fd and its associated Channel.
+ * 2. Handles read/write events (e.g., handle_read).
+ * 3. Executes business logic (e.g., Echoing data back).
+ * 4. Detects remote disconnection (read returns 0) and notifies the Server 
+ * to destroy this object.
+ */
 class Connection {
 private:
     Eventloop* loop_;

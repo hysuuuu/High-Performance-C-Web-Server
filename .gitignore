@@ -33,6 +33,7 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+*cmake
 
 # IDE settings (Visual Studio Code, JetBrains, etc.)
 .vscode/
