@@ -10,6 +10,7 @@ private:
 
 public:
     Socket();
+    explicit Socket(int fd);
     ~Socket();
 
     void bind(const InetAddress& addr);

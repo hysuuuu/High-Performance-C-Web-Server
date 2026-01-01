@@ -18,6 +18,12 @@ Socket::Socket() : fd_(-1) {
     setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 }
 
+Socket::Socket(int fd) : fd_(fd) {
+    // Set port reusable
+    int opt = 1;
+    setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+}
+
 Socket::~Socket() {
     if (fd_ != -1) {
         close(fd_);
