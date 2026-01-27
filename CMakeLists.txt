@@ -22,6 +22,7 @@ add_library(socket_lib
     src/Acceptor.cpp
     src/Server.cpp
     src/Connection.cpp
+    src/Buffer.cpp
 )
 target_include_directories(socket_lib PUBLIC include)
 
