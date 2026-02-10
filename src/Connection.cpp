@@ -8,6 +8,7 @@
 #include "Connection.h"
 
 
+
 Connection::Connection(int fd, Eventloop* loop) : sock_(new Socket(fd)), loop_(loop), chan_(new Channel(loop, fd)) {
     chan_->set_readCallback([this]() {
         this->handle_read();
@@ -23,16 +24,19 @@ Connection::~Connection() {
 
 void Connection::handle_read() {
     int client_fd = sock_->get_fd();
-    char buffer[1024];
-    int read_bytes = read(client_fd, buffer, sizeof(buffer)); 
+    int save_errno = 0;
+    ssize_t read_bytes = read_buffer_.read_fd(client_fd, &save_errno);
 
     while (read_bytes > 0) {
-        std::cout << "Received: " << buffer << std::endl;
-        read_bytes = read(client_fd, buffer, sizeof(buffer)); 
+        std::string msg = read_buffer_.retrieve_all_as_string();
+        std::cout << "Received: " << msg << std::endl;
         
         // Simple greeting (write to socket)
         const char* hello = "Hello from Server!\n";
-        write(client_fd, hello, strlen(hello));            
+        // TODO: change to Write Buffer
+        write(client_fd, hello, strlen(hello));      
+        
+        read_bytes = read_buffer_.read_fd(client_fd, &save_errno);
     }
     if (read_bytes == 0) {
         // Close client connection and remove from epoll
@@ -41,7 +45,7 @@ void Connection::handle_read() {
             delete_connection_callback_(client_fd);
         }
     } else if (read_bytes == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (save_errno == EAGAIN || save_errno == EWOULDBLOCK) {
         } else {
             perror("Read error");    
             if (delete_connection_callback_) {

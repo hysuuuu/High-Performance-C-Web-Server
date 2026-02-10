@@ -9,6 +9,14 @@ Server::Server(const char* ip, uint16_t port, Eventloop* loop) : loop_(loop), ac
     });
 }
 
+Server::~Server() {
+    delete acceptor_;
+
+    for (auto& item : connection_map_) {
+        delete item.second; 
+    }
+}
+
 void Server::new_connection(int fd) {
     Connection* connection = new Connection(fd, loop_);
     connection_map_[fd] = connection;    

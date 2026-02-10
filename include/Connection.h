@@ -2,6 +2,8 @@
 
 #include <functional>
 
+#include "Buffer.h"
+
 class Socket;
 class Channel;
 class Eventloop;
@@ -27,6 +29,7 @@ private:
     Eventloop* loop_;
     Socket* sock_;
     Channel* chan_;
+    Buffer read_buffer_;
 
     std::function<void(int)> delete_connection_callback_;
 
