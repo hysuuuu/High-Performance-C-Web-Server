@@ -14,6 +14,13 @@ Connection::Connection(int fd, Eventloop* loop) : sock_(new Socket(fd)), loop_(l
         this->handle_read();
     });
     chan_->enable_reading();
+
+    std::cout << "[Debug] Connection: Constructor called for fd " << fd << std::endl;
+
+    const char* welcome = "Welcome to the High-Performance Server!\n";
+    ssize_t bytes_written = write(fd, welcome, strlen(welcome));
+
+    std::cout << "[Debug] Connection: Sent welcome message, bytes: " << bytes_written << std::endl;
 }
 
 Connection::~Connection() {

@@ -4,6 +4,7 @@
 #include <fcntl.h>    
 #include <cstring>       
 #include <fcntl.h>
+#include <errno.h>
 
 #include "InetAddress.h"
 
@@ -54,9 +55,17 @@ int Socket::accept(InetAddress* addr) {
 
     int clientSocket = ::accept(fd_, (sockaddr*)&client_addr, &sock_len);
     if (clientSocket == -1) {
-        perror("Socket accept error");
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            perror("Socket accept error");
+        }
         return -1;
     }
+
+    int flags = fcntl(clientSocket, F_GETFL, 0);
+    if (flags != -1) {
+        fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK);
+    }
+
     if (addr != nullptr) {
         addr->set_addr(client_addr);
     }

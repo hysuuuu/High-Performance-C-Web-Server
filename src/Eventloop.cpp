@@ -15,12 +15,22 @@ Eventloop::~Eventloop() {
 
 void Eventloop::loop() {
     while(!quit_) {        
+        // std::cout << "[Debug] Eventloop: Waiting in epoll_wait..." << std::endl;
+
         std::vector<epoll_event> events = epoll_->poll(-1);
+
+        // if (!events.empty()) {
+        //     std::cout << "[Debug] Eventloop: Got " << events.size() << " events." << std::endl;
+        // }
 
         for (auto event : events) {   
             int active_fd = event.data.fd;
             Channel* active_ch = active_ch_[active_fd];
-            active_ch->handle_event();
+            // active_ch->handle_event();
+            if (active_ch) {
+                active_ch->set_revents(event.events);
+                active_ch->handle_event();
+            }
         }
     }
 }

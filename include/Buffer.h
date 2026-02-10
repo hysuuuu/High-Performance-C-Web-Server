@@ -76,6 +76,7 @@ public:
     void append(const char* data, size_t len) {
         ensure_writable_bytes(len);
         std::copy(data, data + len, begin_write());
+        writer_index_ += len;
     }
 
     void append(const std::string& str) {
