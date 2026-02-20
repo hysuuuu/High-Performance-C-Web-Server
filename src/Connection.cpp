@@ -7,6 +7,7 @@
 #include "Channel.h"
 #include "Eventloop.h"
 #include "Connection.h"
+#include "HttpResponse.h"
 
 extern "C" {
 #include "third_party/picohttpparser/picohttpparser.h"
@@ -62,20 +63,17 @@ void Connection::handle_read() {
     );
 
     if (res > 0) { // Parse successful
-        std::string_view method_sv(method, method_len);
-        std::string_view path_sv(path, path_len);
-        
-        std::cout << "[HTTP Request] " << method_sv << " " << path_sv << std::endl;
-
+        HttpResponse res_obj(true);
+        res_obj.set_status_code(HttpResponse::k200Ok);
+        res_obj.set_status_message("OK");
+        res_obj.set_content_type("text/html");
         std::string body = "<html><body><h1>Hello from High-Performance Web Server!</h1></body></html>";
-        std::string response = 
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: " + std::to_string(body.size()) + "\r\n"
-            "Connection: close\r\n"
-            "\r\n" + body;
+        res_obj.set_body(body);
 
-        write(client_fd, response.data(), response.size());
+        // Convert response object to string
+        std::string response_str = res_obj.to_string();
+
+        write(client_fd, response_str.data(), response_str.size());
         read_buffer_.retrieve_all();
         handle_delete_connection();
     } else if (res == -1) {
