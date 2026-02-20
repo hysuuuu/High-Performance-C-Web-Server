@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(HighPerformanceWebServer VERSION 0.1.0 LANGUAGES CXX)
+project(HighPerformanceWebServer VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,9 +23,9 @@ add_library(socket_lib
     src/Server.cpp
     src/Connection.cpp
     src/Buffer.cpp
-    third_party/picohttpparser/picohttpparser.c
+    include/third_party/picohttpparser/picohttpparser.c
 )
-target_include_directories(socket_lib PUBLIC include third_party/picohttpparser)
+target_include_directories(socket_lib PUBLIC include)
 
 # Main server executable
 add_executable(server src/main.cpp)

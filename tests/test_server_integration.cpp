@@ -106,18 +106,32 @@ int main() {
         return 1;
     }
 
-    if (!wait_for_substring(sock, "Welcome to the High-Performance Server!", 500)) {
-        std::cerr << "Did not receive welcome message." << std::endl;
+    // Send proper HTTP GET request
+    const char* http_request = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+    ssize_t sent = ::send(sock, http_request, std::strlen(http_request), 0);
+    if (sent != static_cast<ssize_t>(std::strlen(http_request))) {
+        std::cerr << "Failed to send HTTP request." << std::endl;
         ::close(sock);
         stop_server(server_pid);
         return 1;
     }
 
-    const char* msg = "ping";
-    ::send(sock, msg, std::strlen(msg), 0);
+    // Read the full HTTP response once
+    std::string response = recv_with_timeout(sock, 1000);
+    
+    // Verify HTTP status
+    if (response.find("HTTP/1.1 200 OK") == std::string::npos) {
+        std::cerr << "Did not receive HTTP 200 response." << std::endl;
+        std::cerr << "Response: " << response << std::endl;
+        ::close(sock);
+        stop_server(server_pid);
+        return 1;
+    }
 
-    if (!wait_for_substring(sock, "Hello from Server!", 500)) {
-        std::cerr << "Did not receive response message." << std::endl;
+    // Verify response contains HTML body
+    if (response.find("Hello from High-Performance Web Server") == std::string::npos) {
+        std::cerr << "Did not receive expected response body." << std::endl;
+        std::cerr << "Response: " << response << std::endl;
         ::close(sock);
         stop_server(server_pid);
         return 1;
