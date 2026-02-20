@@ -6,10 +6,12 @@
 #include <chrono>
 #include <cstring>
 #include <atomic>
+#include <errno.h>
 
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 
 // Simple echo server/client test for Socket::bind/listen/accept
@@ -36,16 +38,36 @@ int main() {
             }
 
             char buf[1024];
+            // Use a timeout on the read to avoid blocking indefinitely
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            FD_SET(client_fd, &readfds);
+            
+            struct timeval tv;
+            tv.tv_sec = 2;  // 2 second timeout
+            tv.tv_usec = 0;
+            
+            int activity = ::select(client_fd + 1, &readfds, nullptr, nullptr, &tv);
+            if (activity <= 0) {
+                std::cerr << "read timeout or select error" << std::endl;
+                server_ok.store(false);
+                ::close(client_fd);
+                return;
+            }
+            
             ssize_t n = ::read(client_fd, buf, sizeof(buf));
             if (n > 0) {
                 // echo back
                 ssize_t m = ::write(client_fd, buf, n);
                 if (m != n) {
-                    std::cerr << "write size mismatch" << std::endl;
+                    std::cerr << "write size mismatch: wrote " << m << " expected " << n << std::endl;
                     server_ok.store(false);
                 }
+            } else if (n == 0) {
+                std::cerr << "read returned 0 bytes (client closed connection early)" << std::endl;
+                server_ok.store(false);
             } else {
-                std::cerr << "read failed or zero bytes" << std::endl;
+                std::cerr << "read failed with errno: " << errno << std::endl;
                 server_ok.store(false);
             }
             ::close(client_fd);
@@ -55,32 +77,50 @@ int main() {
         }
     });
 
-    // Wait briefly for server to listen
-    for (int i = 0; i < 50 && !server_ready.load(); ++i) {
+    // Wait for server to listen (increased timeout for GitHub Actions)
+    for (int i = 0; i < 100 && !server_ready.load(); ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+    
+    if (!server_ready.load()) {
+        std::cerr << "Server did not become ready in time" << std::endl;
+        server_thread.join();
+        return 1;
+    }
 
-    // Create client socket and connect
-    int client = ::socket(AF_INET, SOCK_STREAM, 0);
+    // Give server a bit more time to enter accept() with retry
+    int connect_retries = 10;
+    int client = -1;
+    
+    while (connect_retries-- > 0) {
+        client = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (client == -1) {
+            std::cerr << "client socket() failed" << std::endl;
+            server_thread.join();
+            return 1;
+        }
+
+        sockaddr_in srv{};
+        srv.sin_family = AF_INET;
+        srv.sin_port = htons(PORT);
+        if (::inet_pton(AF_INET, "127.0.0.1", &srv.sin_addr) != 1) {
+            std::cerr << "inet_pton failed" << std::endl;
+            ::close(client);
+            server_thread.join();
+            return 1;
+        }
+
+        if (::connect(client, reinterpret_cast<sockaddr*>(&srv), sizeof(srv)) == 0) {
+            break;  // Connection successful
+        }
+        
+        ::close(client);
+        client = -1;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    
     if (client == -1) {
-        std::cerr << "client socket() failed" << std::endl;
-        server_thread.join();
-        return 1;
-    }
-
-    sockaddr_in srv{};
-    srv.sin_family = AF_INET;
-    srv.sin_port = htons(PORT);
-    if (::inet_pton(AF_INET, "127.0.0.1", &srv.sin_addr) != 1) {
-        std::cerr << "inet_pton failed" << std::endl;
-        ::close(client);
-        server_thread.join();
-        return 1;
-    }
-
-    if (::connect(client, reinterpret_cast<sockaddr*>(&srv), sizeof(srv)) == -1) {
-        std::perror("connect");
-        ::close(client);
+        std::cerr << "connect failed after retries" << std::endl;
         server_thread.join();
         return 1;
     }
@@ -88,7 +128,24 @@ int main() {
     const char* msg = "hello-socket";
     ssize_t sent = ::send(client, msg, std::strlen(msg), 0);
     if (sent != static_cast<ssize_t>(std::strlen(msg))) {
-        std::cerr << "send failed or partial" << std::endl;
+        std::cerr << "send failed or partial: sent " << sent << " expected " << std::strlen(msg) << std::endl;
+        ::close(client);
+        server_thread.join();
+        return 1;
+    }
+
+    // Wait for echo with a timeout
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(client, &readfds);
+    
+    struct timeval tv;
+    tv.tv_sec = 2;  // 2 second timeout
+    tv.tv_usec = 0;
+    
+    int activity = ::select(client + 1, &readfds, nullptr, nullptr, &tv);
+    if (activity <= 0) {
+        std::cerr << "recv timeout or select error" << std::endl;
         ::close(client);
         server_thread.join();
         return 1;
@@ -97,7 +154,7 @@ int main() {
     char echo[1024];
     ssize_t recvd = ::recv(client, echo, sizeof(echo), 0);
     if (recvd <= 0) {
-        std::cerr << "recv failed" << std::endl;
+        std::cerr << "recv failed: recvd=" << recvd << " errno=" << errno << std::endl;
         ::close(client);
         server_thread.join();
         return 1;
