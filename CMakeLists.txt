@@ -23,8 +23,9 @@ add_library(socket_lib
     src/Server.cpp
     src/Connection.cpp
     src/Buffer.cpp
+    third_party/picohttpparser/picohttpparser.c
 )
-target_include_directories(socket_lib PUBLIC include)
+target_include_directories(socket_lib PUBLIC include third_party/picohttpparser)
 
 # Main server executable
 add_executable(server src/main.cpp)

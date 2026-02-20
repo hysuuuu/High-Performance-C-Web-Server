@@ -17,7 +17,6 @@ This project implements the **Reactor Pattern** with **Edge-Triggered epoll** to
 
 - **Event-Driven Architecture:** Utilizes Linux `epoll` (Edge-Triggered mode) for efficient I/O multiplexing, capable of handling **10,000+ concurrent connections**.
 - **Multi-Threading:** Implements a **Thread Pool** pattern to decouple connection handling from request processing, maximizing CPU core utilization.
-- **Zero-Copy Parsing:** Custom HTTP request parser based on a Finite State Machine to minimize memory allocations.
 - **Robust Resource Management:** Strictly follows **RAII** principles with C++17 smart pointers (`std::unique_ptr`, `std::shared_ptr`) to ensure no memory leaks.
 - **High Performance:** Optimized task queue with `std::mutex` and `std::condition_variable` to reduce context-switching overhead.
 - **Production Ready:** Containerized with **Docker** for consistent deployment.
@@ -46,3 +45,11 @@ The server adopts a **"One Loop Per Thread"** model inspired by the Reactor patt
 |     Pool       |      |  (HTTP/DB)       |
 +----------------+      +------------------+
 ```
+
+## HTTP Parser
+
+While the underlying network communication layer (Reactor pattern, Epoll event-driven I/O) is built entirely from scratch, this project integrates the open-source **`picohttpparser`** for the HTTP protocol parsing layer. This decision was driven by the following considerations:
+
+1. **Zero-Copy Architecture:** `picohttpparser` uses pointer and length references directly on the project's existing `Buffer` memory blocks. This completely eliminates the overhead of string copying and dynamic memory allocation.
+2. **Hardware Acceleration:** Optimized for modern CPU architectures, it leverages SIMD instructions (SSE4.2/AVX2) for high-speed string matching. This maximizes parsing throughput, perfectly aligning with the project's core goal of high performance.
+3. **Ultra-Lightweight:** Consisting of just a single `.h` and `.c` file, the library is completely dependency-free. This allows for seamless integration into the existing CMake build system without introducing external bloat.
