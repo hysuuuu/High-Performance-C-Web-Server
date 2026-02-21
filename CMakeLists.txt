@@ -35,7 +35,7 @@ target_link_libraries(server PRIVATE socket_lib)
 find_package(Threads REQUIRED)
 enable_testing()
 
-file(GLOB TEST_SOURCES "tests/*.cpp")
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
 message(STATUS "test files: ${TEST_SOURCES}")
 # Helper function to add tests
 foreach(test_src ${TEST_SOURCES})
