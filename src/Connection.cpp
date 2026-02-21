@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <cstring>
 #include <string_view>
+#include <fstream>
+#include <sstream>
 
 #include "Socket.h"
 #include "Epoll.h"
@@ -14,6 +16,15 @@ extern "C" {
 #include "third_party/picohttpparser/picohttpparser.h"
 }
 
+std::string get_mime_type(const std::string& path) {
+    if (path.find(".html") != std::string::npos) return "text/html";
+    if (path.find(".css") != std::string::npos) return "text/css";
+    if (path.find(".js") != std::string::npos) return "application/javascript";
+    if (path.find(".jpg") != std::string::npos || path.find(".jpeg") != std::string::npos) return "image/jpeg";
+    if (path.find(".png") != std::string::npos) return "image/png";
+    if (path.find(".ico") != std::string::npos) return "image/x-icon";
+    return "text/plain";
+}
 
 Connection::Connection(int fd, Eventloop* loop, Threadpool* pool) 
     : loop_(loop), sock_(new Socket(fd)), chan_(new Channel(loop, fd)), 
@@ -52,51 +63,129 @@ void Connection::handle_read() {
 
 
     if (read_buffer_.get_readable_bytes() > 0) {
-        std::string raw_request = read_buffer_.retrieve_all_as_string();
+        // std::string raw_request = read_buffer_.retrieve_all_as_string();
         
         auto self = shared_from_this();        
-        pool_->add_task([self, raw_request]() {
-            self->process_request(raw_request);
+        pool_->add_task([self]() {
+            self->process_request();
         });
     }
-
 }
 
-void Connection::process_request(std::string request_data) {
-    const char *method, *path;
-    size_t method_len, path_len;
-    int minor_version;
-    struct phr_header headers[100];
-    size_t num_headers = 100;
-
-    // Call pico to parse the request
-    int res = phr_parse_request(
-        request_data.data(), request_data.size(),
-        &method, &method_len, &path, &path_len,
-        &minor_version, headers, &num_headers, 0
-    );
-
-    if (res > 0) { // Parse successful
-        HttpResponse res_obj(true);
-        res_obj.set_status_code(HttpResponse::k200Ok);
-        res_obj.set_status_message("OK");
-        res_obj.set_content_type("text/html");
-        std::string body = "<html><body><h1>Hello from High-Performance Web Server!</h1></body></html>";
-        // big chunk for buffer testing
-        // body += std::string(100000, 'A');
-        res_obj.set_body(body);
-
-        // Convert response object to string
-        std::string response_str = res_obj.to_string();
-        send(response_str);
-        if (res_obj.is_close_connection()) {
-            disconnect();
+void Connection::process_request() {
+    while (true) {
+        std::string request_data;
+        {
+            std::lock_guard<std::mutex> lock(conn_mutex_);
+            if (read_buffer_.get_readable_bytes() == 0) return;
+            request_data = std::string(read_buffer_.peek(), read_buffer_.get_readable_bytes());
         }
-    } else if (res == -1) {
-        std::cerr << "HTTP Parse Error" << std::endl;
-        disconnect();
-    }
+
+        const char *method, *path;
+        size_t method_len, path_len;
+        int minor_version;
+        struct phr_header headers[100];
+        size_t num_headers = 100;
+
+        // Call pico to parse the request
+        int res = phr_parse_request(
+            request_data.data(), request_data.size(),
+            &method, &method_len, &path, &path_len,
+            &minor_version, headers, &num_headers, 0
+        );
+
+        if (res > 0) { // Parse successful
+            {
+                std::lock_guard<std::mutex> lock(conn_mutex_);
+                read_buffer_.retrieve(res); 
+            }
+
+            bool keep_alive = (minor_version == 1); 
+            for (size_t i = 0; i < num_headers; ++i) {
+                std::string_view name(headers[i].name, headers[i].name_len);
+                std::string_view value(headers[i].value, headers[i].value_len);
+                if (name == "Connection" || name == "connection") {
+                    if (value == "close" || value == "Close") keep_alive = false;
+                    if (value == "keep-alive" || value == "Keep-Alive") keep_alive = true;
+                }
+            }
+
+            std::string req_path(path, path_len);
+            if (req_path == "/") {
+                req_path = "/index.html"; 
+            }
+            std::string file_path = "../www" + req_path;
+
+            HttpResponse res_obj(!keep_alive);
+            std::ifstream file(file_path, std::ios::binary);
+
+            if (file.is_open()) {
+                std::stringstream buffer;
+                buffer << file.rdbuf(); 
+                res_obj.set_status_code(HttpResponse::k200Ok);
+                res_obj.set_status_message("OK");
+                res_obj.set_content_type(get_mime_type(file_path));
+                res_obj.set_body(buffer.str());
+            } else {
+                res_obj.set_status_code(HttpResponse::k404NotFound);
+                res_obj.set_status_message("Not Found");
+                res_obj.set_content_type("text/html");
+                res_obj.set_body("<html><body><h1>404 Not Found</h1></body></html>");
+            }
+
+            send(res_obj.to_string());
+
+            if (!keep_alive) {
+                disconnect();
+                break;
+            }
+        } else if (res == -2) {
+            // Incomplete request
+            break;
+        } else {
+            // HTTP format error
+            std::cerr << "HTTP Parse Error" << std::endl;
+            disconnect();
+            break;
+        }
+    }    
 }
+
+// void Connection::process_request(std::string request_data) {
+//     const char *method, *path;
+//     size_t method_len, path_len;
+//     int minor_version;
+//     struct phr_header headers[100];
+//     size_t num_headers = 100;
+
+//     // Call pico to parse the request
+//     int res = phr_parse_request(
+//         request_data.data(), request_data.size(),
+//         &method, &method_len, &path, &path_len,
+//         &minor_version, headers, &num_headers, 0
+//     );
+
+//     if (res > 0) { // Parse successful
+//         HttpResponse res_obj(true);
+//         res_obj.set_status_code(HttpResponse::k200Ok);
+//         res_obj.set_status_message("OK");
+//         res_obj.set_content_type("text/html");
+//         std::string body = "<html><body><h1>Hello from High-Performance Web Server!</h1></body></html>";
+//         // big chunk for buffer testing
+//         // body += std::string(100000, 'A');
+//         res_obj.set_body(body);
+
+//         // Convert response object to string
+//         std::string response_str = res_obj.to_string();
+//         send(response_str);
+//         if (res_obj.is_close_connection()) {
+//             disconnect();
+//         }
+//     } else if (res == -1) {
+//         std::cerr << "HTTP Parse Error" << std::endl;
+//         disconnect();
+//     }
+// }
 
 
 void Connection::handle_write() {

@@ -53,7 +53,8 @@ public:
     void send(const std::string& msg);
     void disconnect();
 
-    void process_request(std::string request_data);
+    void process_request();
+    // void process_request(std::string request_data);
 
     void handle_delete_connection();  
     void set_delete_connection_callback(std::function<void(int)> cb) { delete_connection_callback_ = cb; }   

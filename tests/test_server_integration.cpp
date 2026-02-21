@@ -129,7 +129,7 @@ int main() {
     }
 
     // Verify response contains HTML body
-    if (response.find("Hello from High-Performance Web Server") == std::string::npos) {
+    if (response.find("C++ Web Server") == std::string::npos) {
         std::cerr << "Did not receive expected response body." << std::endl;
         std::cerr << "Response: " << response << std::endl;
         ::close(sock);
