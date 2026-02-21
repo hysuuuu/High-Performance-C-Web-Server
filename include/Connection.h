@@ -3,6 +3,7 @@
 #include <functional>
 #include <string>
 #include <mutex>
+#include <memory>
 
 #include "Buffer.h"
 
@@ -26,7 +27,7 @@ class Threadpool;
  * 4. Detects remote disconnection (read returns 0) and notifies the Server 
  * to destroy this object.
  */
-class Connection {
+class Connection : public std::enable_shared_from_this<Connection> {
 private:
     Eventloop* loop_;
     Socket* sock_;

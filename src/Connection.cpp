@@ -51,10 +51,14 @@ void Connection::handle_read() {
     }
 
 
-    std::string raw_request = read_buffer_.retrieve_all_as_string();        
-    pool_->add_task([this, raw_request]() {
-            this->process_request(raw_request);
-    });
+    if (read_buffer_.get_readable_bytes() > 0) {
+        std::string raw_request = read_buffer_.retrieve_all_as_string();
+        
+        auto self = shared_from_this();        
+        pool_->add_task([self, raw_request]() {
+            self->process_request(raw_request);
+        });
+    }
 
 }
 

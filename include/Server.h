@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <map>
 #include <mutex>
+#include <memory>
 
 #include "Threadpool.h"
 
@@ -34,7 +35,7 @@ private:
     Threadpool* thread_pool_;
     std::mutex server_mutex_;
 
-    std::map<int, Connection*> connection_map_;
+    std::map<int, std::shared_ptr<Connection>> connection_map_;
 
 public:
     Server(const char* ip, uint16_t port, Eventloop* loop);
