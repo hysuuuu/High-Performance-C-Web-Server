@@ -4,6 +4,8 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <thread>
+#include <atomic>
 
 #include "Threadpool.h"
 
@@ -36,6 +38,11 @@ private:
     std::mutex server_mutex_;
 
     std::map<int, std::shared_ptr<Connection>> connection_map_;
+
+    std::thread timer_thread_;
+    std::atomic<bool> stop_timer_;
+
+    void sweep_idle_connections();
 
 public:
     Server(const char* ip, uint16_t port, Eventloop* loop);

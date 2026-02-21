@@ -29,6 +29,7 @@ std::string get_mime_type(const std::string& path) {
 Connection::Connection(int fd, Eventloop* loop, Threadpool* pool) 
     : loop_(loop), sock_(new Socket(fd)), chan_(new Channel(loop, fd)), 
       read_buffer_(), write_buffer_(), is_disconnecting_(false), pool_(pool) {
+    update_active_time();
     // Register read and write callbacks
     chan_->set_readCallback([this]() { this->handle_read(); });
     chan_->set_writeCallback([this]() { this->handle_write(); });
@@ -42,6 +43,8 @@ Connection::~Connection() {
 }
 
 void Connection::handle_read() {
+    update_active_time();
+    
     int client_fd = sock_->get_fd();
     int save_errno = 0;
     ssize_t read_bytes;
@@ -151,44 +154,9 @@ void Connection::process_request() {
     }    
 }
 
-// void Connection::process_request(std::string request_data) {
-//     const char *method, *path;
-//     size_t method_len, path_len;
-//     int minor_version;
-//     struct phr_header headers[100];
-//     size_t num_headers = 100;
-
-//     // Call pico to parse the request
-//     int res = phr_parse_request(
-//         request_data.data(), request_data.size(),
-//         &method, &method_len, &path, &path_len,
-//         &minor_version, headers, &num_headers, 0
-//     );
-
-//     if (res > 0) { // Parse successful
-//         HttpResponse res_obj(true);
-//         res_obj.set_status_code(HttpResponse::k200Ok);
-//         res_obj.set_status_message("OK");
-//         res_obj.set_content_type("text/html");
-//         std::string body = "<html><body><h1>Hello from High-Performance Web Server!</h1></body></html>";
-//         // big chunk for buffer testing
-//         // body += std::string(100000, 'A');
-//         res_obj.set_body(body);
-
-//         // Convert response object to string
-//         std::string response_str = res_obj.to_string();
-//         send(response_str);
-//         if (res_obj.is_close_connection()) {
-//             disconnect();
-//         }
-//     } else if (res == -1) {
-//         std::cerr << "HTTP Parse Error" << std::endl;
-//         disconnect();
-//     }
-// }
-
-
 void Connection::handle_write() {
+    update_active_time();
+
     bool should_disconnect = false;
     std::lock_guard<std::mutex> lock(conn_mutex_);
 

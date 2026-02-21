@@ -4,6 +4,7 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <chrono>
 
 #include "Buffer.h"
 
@@ -43,9 +44,18 @@ private:
     Threadpool* pool_;
     std::mutex conn_mutex_;
 
+    std::chrono::steady_clock::time_point last_active_time_;
+
 public:
     Connection(int fd, Eventloop* loop, Threadpool* pool);
     ~Connection();
+
+    void update_active_time() {
+        last_active_time_ = std::chrono::steady_clock::now();
+    }
+    std::chrono::steady_clock::time_point get_last_active_time() const {
+        return last_active_time_;
+    }
 
     void handle_read();
     void handle_write();
@@ -54,7 +64,6 @@ public:
     void disconnect();
 
     void process_request();
-    // void process_request(std::string request_data);
 
     void handle_delete_connection();  
     void set_delete_connection_callback(std::function<void(int)> cb) { delete_connection_callback_ = cb; }   
