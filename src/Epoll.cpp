@@ -1,6 +1,8 @@
 #include "Epoll.h"
 #include <iostream>
-#include <unistd.h>  
+#include <unistd.h>
+#include <errno.h>
+#include <iostream>  
 
 Epoll::Epoll() : epfd_(-1), ep_events_(nullptr) {
     epfd_ = epoll_create1(0);
@@ -55,6 +57,9 @@ void Epoll::remove_fd(int fd) {
 std::vector<epoll_event> Epoll::poll(int timeout) {
     int fd_ready = epoll_wait(epfd_, ep_events_, MAX_EVENTS, timeout);
     if (fd_ready == -1) {
+        if (errno == EINTR) {
+            return {}; 
+        }
         perror("Epoll wait error");
         throw std::runtime_error("Epoll wait failed.");
     }

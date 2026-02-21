@@ -18,6 +18,8 @@ public:
     void loop();
     void update_channel(Channel* ch);
 
+    void quit() {quit_ = true; }
+
     // Getter and Setter
     Epoll* get_epoll() const { return epoll_; }
 };
