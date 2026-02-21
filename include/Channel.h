@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/epoll.h>
+
 #include <iostream>
 #include <cstdint>
 #include <functional>
@@ -21,7 +23,11 @@ public:
     ~Channel() = default;
 
     void enable_reading();
+    void enable_writing();
+    void disable_writing();
     void handle_event();  
+
+    bool is_writing() const { return events_ & EPOLLOUT; } 
 
     // Setter 
     void set_events(uint32_t ev) { events_ = ev; }

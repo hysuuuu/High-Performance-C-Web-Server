@@ -1,13 +1,13 @@
 #pragma once
 
 #include <functional>
+#include <string>
 
 #include "Buffer.h"
 
 class Socket;
 class Channel;
 class Eventloop;
-class Server;
 
 /**
  * @class Connection
@@ -29,7 +29,11 @@ private:
     Eventloop* loop_;
     Socket* sock_;
     Channel* chan_;
+
     Buffer read_buffer_;
+    Buffer write_buffer_;
+
+    bool is_disconnecting_;
 
     std::function<void(int)> delete_connection_callback_;
 
@@ -38,8 +42,12 @@ public:
     ~Connection();
 
     void handle_read();
-    void handle_delete_connection();
+    void handle_write();
 
+    void send(const std::string& msg);
+    void disconnect();
+
+    void handle_delete_connection();  
     void set_delete_connection_callback(std::function<void(int)> cb) { delete_connection_callback_ = cb; }
 
 };

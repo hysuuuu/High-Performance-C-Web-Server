@@ -4,7 +4,17 @@
 #include "Eventloop.h"
 
 void Channel::enable_reading() {
-    set_events(EPOLLIN | EPOLLET);
+    events_ |= (EPOLLIN | EPOLLET);
+    loop_->update_channel(this);
+}
+
+void Channel::enable_writing() {
+    events_ |= EPOLLOUT;
+    loop_->update_channel(this);
+}
+
+void Channel::disable_writing() {
+    events_ &= ~EPOLLOUT;
     loop_->update_channel(this);
 }
 
