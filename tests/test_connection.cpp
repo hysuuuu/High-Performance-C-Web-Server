@@ -27,6 +27,7 @@
 #include "Eventloop.h"
 #include "Socket.h"
 #include "Buffer.h"
+#include "Threadpool.h"
 
 #include <cassert>
 #include <iostream>
@@ -52,6 +53,9 @@ bool expect_true(const char* label, bool condition) {
 }
 
 int main() {
+    // Create a thread pool for task processing
+    Threadpool pool(4);
+    
     // Declare all eventloops and connections at start to avoid scope issues
     Eventloop loop1, loop2, loop3, loop4, loop5, loop6, loop7;
     
@@ -60,7 +64,7 @@ int main() {
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets1) == -1) {
         return fail("Failed to create socket pair");
     }
-    Connection conn1(sockets1[0], &loop1);
+    Connection conn1(sockets1[0], &loop1, &pool);
     close(sockets1[1]);
     std::cout << "Test 1 passed: Connection initialization" << std::endl;
 
@@ -69,7 +73,7 @@ int main() {
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets2) == -1) {
         return fail("Failed to create socket pair");
     }
-    Connection conn2(sockets2[0], &loop2);
+    Connection conn2(sockets2[0], &loop2, &pool);
     conn2.set_delete_connection_callback([](int) {
         // Callback set
     });
@@ -82,8 +86,8 @@ int main() {
         socketpair(AF_UNIX, SOCK_STREAM, 0, sockets3b) == -1) {
         return fail("Failed to create socket pairs");
     }
-    Connection conn3a(sockets3a[0], &loop3);
-    Connection conn3b(sockets3b[0], &loop3);
+    Connection conn3a(sockets3a[0], &loop3, &pool);
+    Connection conn3b(sockets3b[0], &loop3, &pool);
     close(sockets3a[1]);
     close(sockets3b[1]);
     std::cout << "Test 3 passed: Multiple connections" << std::endl;
@@ -93,7 +97,7 @@ int main() {
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets4) == -1) {
         return fail("Failed to create socket pair");
     }
-    Connection conn4(sockets4[0], &loop4);
+    Connection conn4(sockets4[0], &loop4, &pool);
     const char* test_msg = "hello";
     write(sockets4[1], test_msg, strlen(test_msg));
     close(sockets4[1]);
@@ -104,7 +108,7 @@ int main() {
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets5) == -1) {
         return fail("Failed to create socket pair");
     }
-    Connection conn5(sockets5[0], &loop5);
+    Connection conn5(sockets5[0], &loop5, &pool);
     bool deleted = false;
     conn5.set_delete_connection_callback([&](int) {
         deleted = true;
@@ -122,7 +126,7 @@ int main() {
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets6) == -1) {
         return fail("Failed to create socket pair");
     }
-    Connection conn6(sockets6[0], &loop6);
+    Connection conn6(sockets6[0], &loop6, &pool);
     close(sockets6[1]);
     std::cout << "Test 6 passed: Connection lifecycle" << std::endl;
 
@@ -132,8 +136,8 @@ int main() {
         socketpair(AF_UNIX, SOCK_STREAM, 0, sockets7b) == -1) {
         return fail("Failed to create socket pairs");
     }
-    Connection conn7a(sockets7a[0], &loop7);
-    Connection conn7b(sockets7b[0], &loop7);
+    Connection conn7a(sockets7a[0], &loop7, &pool);
+    Connection conn7b(sockets7b[0], &loop7, &pool);
     close(sockets7a[1]);
     close(sockets7b[1]);
     std::cout << "Test 7 passed: Single shared eventloop" << std::endl;

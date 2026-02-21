@@ -2,12 +2,14 @@
 
 #include <functional>
 #include <string>
+#include <mutex>
 
 #include "Buffer.h"
 
 class Socket;
 class Channel;
 class Eventloop;
+class Threadpool;
 
 /**
  * @class Connection
@@ -37,8 +39,11 @@ private:
 
     std::function<void(int)> delete_connection_callback_;
 
+    Threadpool* pool_;
+    std::mutex conn_mutex_;
+
 public:
-    Connection(int fd, Eventloop* loop);
+    Connection(int fd, Eventloop* loop, Threadpool* pool);
     ~Connection();
 
     void handle_read();
@@ -47,7 +52,9 @@ public:
     void send(const std::string& msg);
     void disconnect();
 
+    void process_request(std::string request_data);
+
     void handle_delete_connection();  
-    void set_delete_connection_callback(std::function<void(int)> cb) { delete_connection_callback_ = cb; }
+    void set_delete_connection_callback(std::function<void(int)> cb) { delete_connection_callback_ = cb; }   
 
 };

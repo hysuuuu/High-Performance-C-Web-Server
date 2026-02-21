@@ -2,6 +2,9 @@
 
 #include <arpa/inet.h>
 #include <map>
+#include <mutex>
+
+#include "Threadpool.h"
 
 class Eventloop;
 class Socket;
@@ -27,6 +30,9 @@ class Server {
 private:
     Eventloop* loop_;
     Acceptor* acceptor_;
+
+    Threadpool* thread_pool_;
+    std::mutex server_mutex_;
 
     std::map<int, Connection*> connection_map_;
 

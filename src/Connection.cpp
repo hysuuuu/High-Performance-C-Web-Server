@@ -8,13 +8,16 @@
 #include "Eventloop.h"
 #include "Connection.h"
 #include "HttpResponse.h"
+#include "Threadpool.h"
 
 extern "C" {
 #include "third_party/picohttpparser/picohttpparser.h"
 }
 
 
-Connection::Connection(int fd, Eventloop* loop) : sock_(new Socket(fd)), loop_(loop), chan_(new Channel(loop, fd)) {
+Connection::Connection(int fd, Eventloop* loop, Threadpool* pool) 
+    : loop_(loop), sock_(new Socket(fd)), chan_(new Channel(loop, fd)), 
+      read_buffer_(), write_buffer_(), is_disconnecting_(false), pool_(pool) {
     // Register read and write callbacks
     chan_->set_readCallback([this]() { this->handle_read(); });
     chan_->set_writeCallback([this]() { this->handle_write(); });
@@ -47,6 +50,15 @@ void Connection::handle_read() {
         return;
     }
 
+
+    std::string raw_request = read_buffer_.retrieve_all_as_string();        
+    pool_->add_task([this, raw_request]() {
+            this->process_request(raw_request);
+    });
+
+}
+
+void Connection::process_request(std::string request_data) {
     const char *method, *path;
     size_t method_len, path_len;
     int minor_version;
@@ -55,7 +67,7 @@ void Connection::handle_read() {
 
     // Call pico to parse the request
     int res = phr_parse_request(
-        read_buffer_.peek(), read_buffer_.get_readable_bytes(),
+        request_data.data(), request_data.size(),
         &method, &method_len, &path, &path_len,
         &minor_version, headers, &num_headers, 0
     );
@@ -67,13 +79,12 @@ void Connection::handle_read() {
         res_obj.set_content_type("text/html");
         std::string body = "<html><body><h1>Hello from High-Performance Web Server!</h1></body></html>";
         // big chunk for buffer testing
-        body += std::string(100000, 'A');
+        // body += std::string(100000, 'A');
         res_obj.set_body(body);
 
         // Convert response object to string
         std::string response_str = res_obj.to_string();
         send(response_str);
-        read_buffer_.retrieve_all();
         if (res_obj.is_close_connection()) {
             disconnect();
         }
@@ -83,7 +94,11 @@ void Connection::handle_read() {
     }
 }
 
+
 void Connection::handle_write() {
+    bool should_disconnect = false;
+    std::lock_guard<std::mutex> lock(conn_mutex_);
+
     if (chan_->is_writing()) {
         ssize_t n = write(sock_->get_fd(), write_buffer_.peek(), write_buffer_.get_readable_bytes());
         
@@ -96,17 +111,23 @@ void Connection::handle_write() {
                 
                 // If the connection was marked for disconnect, close it now
                 if (is_disconnecting_) {
-                    handle_delete_connection();
+                    should_disconnect = true;
                 }
             }
         } else {
             perror("Connection handle_write error");
         }
     }
+
+    if (should_disconnect) {
+        handle_delete_connection();
+    }
 }
 
 void Connection::send(const std::string& msg) {
     if (is_disconnecting_) return;
+
+    std::lock_guard<std::mutex> lock(conn_mutex_);
 
     ssize_t nwrote = 0;
     size_t remaining = msg.size();
@@ -144,9 +165,16 @@ void Connection::send(const std::string& msg) {
 }
 
 void Connection::disconnect() {
+    bool should_disconnect = false;
+    std::lock_guard<std::mutex> lock(conn_mutex_);
     is_disconnecting_ = true;
     // If we are not waiting to send remaining data, we can disconnect immediately
     if (!chan_->is_writing()) {
+        should_disconnect = true;
+    }
+
+    // Disconnect after unlock
+    if (should_disconnect) {
         delete_connection_callback_(sock_->get_fd());
     }
 }
