@@ -8,9 +8,9 @@ Eventloop::Eventloop() : quit_(false) {
 
 Eventloop::~Eventloop() {
     delete epoll_;
-    for (auto& ch : active_ch_) {
-        delete ch.second;
-    }
+    // Note: Do NOT delete channels here - they are owned by Connection, not Eventloop
+    // Eventloop only stores pointers to channels for event management
+    active_ch_.clear();
 }
 
 void Eventloop::loop() {
