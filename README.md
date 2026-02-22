@@ -9,33 +9,35 @@
 
 A non-blocking HTTP/1.1 web server built from scratch using C++17 on Linux.
 
-The current implementation is a single-reactor, edge-triggered epoll server with a worker thread pool for request processing. It serves static files from the local www directory and uses picohttpparser for lightweight HTTP parsing.
+The current implementation uses a multi-reactor architecture: a main acceptor loop dispatches new connections to sub-reactor event loops using round-robin. It serves static files from the local www directory and uses picohttpparser for lightweight HTTP parsing.
 
-**Current Status:** Active development. Single event loop + thread pool + static file server are working. Multi-loop reactor and advanced routing are not implemented yet.
+**Current Status:** Active development. Multi-reactor event loops, thread pool processing, and static file server are working. Advanced routing and HTTP features are still in progress.
 
 ## Key Features (Current)
 
 - Event-driven I/O with edge-triggered epoll and non-blocking sockets.
+- Multi-reactor event loops with round-robin dispatch from the main acceptor.
 - Connection management via Channel/Connection classes, cleaned up with RAII patterns.
 - Thread pool for parsing and response generation on worker threads.
 - HTTP/1.1 parsing via picohttpparser.
-- Keep-Alive support plus idle timeout sweeping (default 30 seconds).
+- Keep-Alive support plus idle timeout sweeping (default 15 seconds).
 - Static file serving with basic MIME type detection.
 
 ## System Architecture
 
-The server currently uses a single event loop and a worker pool for request processing:
+The server uses a main acceptor loop plus a sub-reactor pool for I/O, and a worker pool for request processing:
 
 ```text
 +------------------+      +------------------+
-|  Acceptor        | <--> |  Event Loop      |
+|  Acceptor        | ---> |  Main Loop       |
 |  (listen socket) |      |  (epoll wait)    |
 +--------+---------+      +--------+---------+
          |                         |
-         |                         | read/write events
+         | round-robin             | dispatch new connections
          v                         v
-+--------+---------+      +------------------+
-|  Connection      | <--> |  Buffer + Channel|
++------------------+      +------------------+
+| Sub Reactor Pool | <--> |  Connection      |
+| (N Event Loops)  |      |  Buffer + Channel|
 +--------+---------+      +------------------+
          |
          | dispatch request

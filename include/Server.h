@@ -14,6 +14,7 @@ class Socket;
 class Channel;
 class Acceptor;
 class Connection;
+class EventLoopThreadPool;
 
 /**
  * @class Server
@@ -33,6 +34,8 @@ class Server {
 private:
     Eventloop* loop_;
     Acceptor* acceptor_;
+
+    EventLoopThreadPool* sub_reactor_pool_; 
 
     Threadpool* thread_pool_;
     std::mutex server_mutex_;

@@ -37,7 +37,7 @@ Connection::Connection(int fd, Eventloop* loop, Threadpool* pool)
 }
 
 Connection::~Connection() {
-    loop_->get_epoll()->remove_fd(sock_->get_fd());
+    loop_->remove_channel(chan_);
     delete sock_;  
     delete chan_;
 }
