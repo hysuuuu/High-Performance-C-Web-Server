@@ -7,49 +7,70 @@
 
 ## Introduction
 
-A high-performance, non-blocking HTTP web server built from scratch using **C++17** and **Systems Programming** techniques on Linux.
+A non-blocking HTTP/1.1 web server built from scratch using C++17 on Linux.
 
-This project implements the **Reactor Pattern** with **Edge-Triggered epoll** to handle massive concurrent connections with minimal resource consumption. It features a custom **Thread Pool** for computational tasks and a **Finite State Machine (FSM)** for efficient HTTP parsing.
+The current implementation is a single-reactor, edge-triggered epoll server with a worker thread pool for request processing. It serves static files from the local www directory and uses picohttpparser for lightweight HTTP parsing.
 
-**Current Status:** _Active Development (Prototyping Core Network Layer)_
+**Current Status:** Active development. Single event loop + thread pool + static file server are working. Multi-loop reactor and advanced routing are not implemented yet.
 
-## Key Features (Targeted)
+## Key Features (Current)
 
-- **Event-Driven Architecture:** Utilizes Linux `epoll` (Edge-Triggered mode) for efficient I/O multiplexing, capable of handling **10,000+ concurrent connections**.
-- **Multi-Threading:** Implements a **Thread Pool** pattern to decouple connection handling from request processing, maximizing CPU core utilization.
-- **Robust Resource Management:** Strictly follows **RAII** principles with C++17 smart pointers (`std::unique_ptr`, `std::shared_ptr`) to ensure no memory leaks.
-- **High Performance:** Optimized task queue with `std::mutex` and `std::condition_variable` to reduce context-switching overhead.
-- **Production Ready:** Containerized with **Docker** for consistent deployment.
+- Event-driven I/O with edge-triggered epoll and non-blocking sockets.
+- Connection management via Channel/Connection classes, cleaned up with RAII patterns.
+- Thread pool for parsing and response generation on worker threads.
+- HTTP/1.1 parsing via picohttpparser.
+- Keep-Alive support plus idle timeout sweeping (default 30 seconds).
+- Static file serving with basic MIME type detection.
 
 ## System Architecture
 
-The server adopts a **"One Loop Per Thread"** model inspired by the Reactor pattern.
+The server currently uses a single event loop and a worker pool for request processing:
 
 ```text
-+----------------+      +------------------+
-|  Main Reactor  | <--> |  Acceptor (Listen)|
-|   (Main Loop)  |      +------------------+
-+-------+--------+
-        |
-        | Dispatch (Round Robin)
-        v
-+-------+--------+      +------------------+
-|  Sub Reactor   | <--> |  Event Loop      |
-|    (Thread)    |      |  (epoll wait)    |
-+-------+--------+      +------------------+
-        |
-        | Add Task
-        v
-+-------+--------+      +------------------+
-|  Worker Thread | <--> |  Business Logic  |
-|     Pool       |      |  (HTTP/DB)       |
-+----------------+      +------------------+
++------------------+      +------------------+
+|  Acceptor        | <--> |  Event Loop      |
+|  (listen socket) |      |  (epoll wait)    |
++--------+---------+      +--------+---------+
+         |                         |
+         |                         | read/write events
+         v                         v
++--------+---------+      +------------------+
+|  Connection      | <--> |  Buffer + Channel|
++--------+---------+      +------------------+
+         |
+         | dispatch request
+         v
++------------------+
+| Worker Threadpool|
++------------------+
 ```
 
-## HTTP Parser
+## HTTP Parsing
 
-While the underlying network communication layer (Reactor pattern, Epoll event-driven I/O) is built entirely from scratch, this project integrates the open-source **`picohttpparser`** for the HTTP protocol parsing layer. This decision was driven by the following considerations:
+The network and buffering layers are custom, while HTTP parsing uses picohttpparser for low overhead, zero-copy style request parsing.
 
-1. **Zero-Copy Architecture:** `picohttpparser` uses pointer and length references directly on the project's existing `Buffer` memory blocks. This completely eliminates the overhead of string copying and dynamic memory allocation.
-2. **Hardware Acceleration:** Optimized for modern CPU architectures, it leverages SIMD instructions (SSE4.2/AVX2) for high-speed string matching. This maximizes parsing throughput, perfectly aligning with the project's core goal of high performance.
-3. **Ultra-Lightweight:** Consisting of just a single `.h` and `.c` file, the library is completely dependency-free. This allows for seamless integration into the existing CMake build system without introducing external bloat.
+## Build and Run
+
+```bash
+mkdir -p build
+cd build
+cmake ..
+make -j
+./server
+```
+
+Server listens on port 8888 by default. Access http://localhost:8888/ to load www/index.html.
+
+## Tests
+
+```bash
+cd build
+ctest
+```
+
+## Docker
+
+```bash
+docker build -t hpcpp-server .
+docker run --rm -p 8888:8888 hpcpp-server
+```
