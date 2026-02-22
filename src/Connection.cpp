@@ -114,6 +114,10 @@ void Connection::process_request() {
             }
 
             std::string req_path(path, path_len);
+            size_t query_pos = req_path.find('?');
+            if (query_pos != std::string::npos) {
+                req_path = req_path.substr(0, query_pos);
+            }
             if (req_path == "/") {
                 req_path = "/index.html"; 
             }
@@ -156,27 +160,29 @@ void Connection::process_request() {
 
 void Connection::handle_write() {
     update_active_time();
-
     bool should_disconnect = false;
-    std::lock_guard<std::mutex> lock(conn_mutex_);
-
-    if (chan_->is_writing()) {
-        ssize_t n = write(sock_->get_fd(), write_buffer_.peek(), write_buffer_.get_readable_bytes());
+    
+    {
+        std::lock_guard<std::mutex> lock(conn_mutex_);
         
-        if (n > 0) {
-            write_buffer_.retrieve(n); // Remove sent data from buffer
+        if (chan_->is_writing()) {
+            ssize_t n = write(sock_->get_fd(), write_buffer_.peek(), write_buffer_.get_readable_bytes());
             
-            if (write_buffer_.get_readable_bytes() == 0) {
-                // Buffer is empty, stop listening to EPOLLOUT
-                chan_->disable_writing();
+            if (n > 0) {
+                write_buffer_.retrieve(n); // Remove sent data from buffer
                 
-                // If the connection was marked for disconnect, close it now
-                if (is_disconnecting_) {
-                    should_disconnect = true;
+                if (write_buffer_.get_readable_bytes() == 0) {
+                    // Buffer is empty, stop listening to EPOLLOUT
+                    chan_->disable_writing();
+                    
+                    // If the connection was marked for disconnect, close it now
+                    if (is_disconnecting_) {
+                        should_disconnect = true;
+                    }
                 }
+            } else {
+                perror("Connection handle_write error");
             }
-        } else {
-            perror("Connection handle_write error");
         }
     }
 
@@ -188,6 +194,7 @@ void Connection::handle_write() {
 void Connection::send(const std::string& msg) {
     if (is_disconnecting_) return;
 
+    
     std::lock_guard<std::mutex> lock(conn_mutex_);
 
     ssize_t nwrote = 0;
@@ -227,11 +234,14 @@ void Connection::send(const std::string& msg) {
 
 void Connection::disconnect() {
     bool should_disconnect = false;
-    std::lock_guard<std::mutex> lock(conn_mutex_);
-    is_disconnecting_ = true;
-    // If we are not waiting to send remaining data, we can disconnect immediately
-    if (!chan_->is_writing()) {
-        should_disconnect = true;
+
+    {
+        std::lock_guard<std::mutex> lock(conn_mutex_);
+        is_disconnecting_ = true;
+        // If we are not waiting to send remaining data, we can disconnect immediately
+        if (!chan_->is_writing()) {
+            should_disconnect = true;
+        }
     }
 
     // Disconnect after unlock

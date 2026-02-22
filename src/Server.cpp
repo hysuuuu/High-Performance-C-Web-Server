@@ -35,7 +35,7 @@ void Server::sweep_idle_connections() {
             std::lock_guard<std::mutex> lock(server_mutex_);
             for (auto& pair : connection_map_) {
                 // if last activity time is more than 10 seconds 
-                if (now - pair.second->get_last_active_time() > std::chrono::seconds(10)) {
+                if (now - pair.second->get_last_active_time() > std::chrono::seconds(30)) {
                     expired_fds.push_back(pair.first); 
                 }
             }

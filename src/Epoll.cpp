@@ -36,8 +36,16 @@ void Epoll::add_fd(int fd, uint32_t op) {
 
     int ret = epoll_ctl(epfd_, EPOLL_CTL_ADD, fd, &ev);
     if (ret == -1) {
-        perror("Epoll add error");
-        throw std::runtime_error("Epoll add failed.");
+        if (errno == EEXIST) {
+            ret = epoll_ctl(epfd_, EPOLL_CTL_MOD, fd, &ev);
+            if (ret == -1) {
+                perror("Epoll mod error");
+                throw std::runtime_error("Epoll mod failed.");
+            }
+        } else {
+            perror("Epoll add error");
+            throw std::runtime_error("Epoll add failed.");
+        }        
     }
 }
 

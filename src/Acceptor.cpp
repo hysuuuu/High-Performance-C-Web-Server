@@ -44,7 +44,7 @@ void Acceptor::accept_connection() {
             }
         }   
         
-        // std::cout << "[Debug] Acceptor: Accepted client fd: " << client_fd << std::endl;
+        std::cout << "[Debug] Acceptor: Accepted client fd: " << client_fd << std::endl;
         // Hand to server
         if (new_connection_callback_) {
                 new_connection_callback_(client_fd); // Hand to Server

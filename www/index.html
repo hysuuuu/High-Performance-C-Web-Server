@@ -151,6 +151,130 @@
         border-radius: 3px;
         font-size: 0.85rem;
       }
+
+      .load-panel {
+        margin-top: 30px;
+        padding: 20px;
+        border: 1px solid #2a2f45;
+        background: #151925;
+      }
+
+      .load-controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 12px;
+      }
+
+      .load-controls input {
+        padding: 10px 12px;
+        background: #0f1323;
+        border: 1px solid #2a2f45;
+        color: #c5c8d4;
+        font-family: "Courier New", "Consolas", monospace;
+        font-size: 0.9rem;
+        border-radius: 4px;
+        width: 140px;
+      }
+
+      .load-controls button {
+        padding: 10px 16px;
+        background: #00ff88;
+        color: #0f1323;
+        border: none;
+        font-family: "Courier New", "Consolas", monospace;
+        font-weight: bold;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      }
+
+      .load-controls button:hover {
+        background: #00dd77;
+        box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+      }
+
+      .load-controls button:disabled {
+        background: #6b7280;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      .load-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .load-stat {
+        background: #0f1323;
+        border: 1px solid #2a2f45;
+        padding: 12px;
+        text-align: center;
+      }
+
+      .load-stat-label {
+        color: #6b7280;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .load-stat-value {
+        color: #00ff88;
+        font-size: 1.4rem;
+        margin-top: 6px;
+        font-weight: bold;
+      }
+
+      .load-stat-value.error {
+        color: #ff4444;
+      }
+
+      .load-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        margin-top: 18px;
+      }
+
+      .load-dot {
+        width: 10px;
+        height: 10px;
+        background: #555a6d;
+        border-radius: 50%;
+        transition: background-color 0.2s ease;
+      }
+
+      .load-dot.loading {
+        background: #ffc107;
+        animation: load-pulse 1s infinite;
+      }
+
+      .load-dot.success {
+        background: #00ff88;
+      }
+
+      .load-dot.error {
+        background: #ff4444;
+      }
+
+      @keyframes load-pulse {
+        0% {
+          transform: scale(0.8);
+          opacity: 0.5;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(0.8);
+          opacity: 0.5;
+        }
+      }
     </style>
   </head>
   <body>
@@ -208,9 +332,105 @@
         </div>
       </div>
 
+      <div class="load-panel">
+        <div class="info-title">&gt; HIGH CONCURRENCY PRESSURE TEST</div>
+        <div class="info-content">
+          Click to fire a burst of concurrent requests against this server. Each
+          dot represents one request.
+        </div>
+
+        <div class="load-controls">
+          <label for="reqCount" class="spec-label">Requests</label>
+          <input type="number" id="reqCount" value="500" min="10" max="10000" />
+          <button id="startBtn" onclick="startLoadTest()">
+            START LOAD TEST
+          </button>
+        </div>
+
+        <div class="load-stats">
+          <div class="load-stat">
+            <div class="load-stat-label">Success</div>
+            <div class="load-stat-value" id="valSuccess">0</div>
+          </div>
+          <div class="load-stat">
+            <div class="load-stat-label">Failed</div>
+            <div class="load-stat-value error" id="valError">0</div>
+          </div>
+          <div class="load-stat">
+            <div class="load-stat-label">Total Time (ms)</div>
+            <div class="load-stat-value" id="valTime">0</div>
+          </div>
+        </div>
+
+        <div class="load-grid" id="dotGrid"></div>
+      </div>
+
       <div class="footer">
         High-Performance C++ Web Server — Build with efficiency
       </div>
     </div>
+
+    <script>
+      async function startLoadTest() {
+        const reqCount = parseInt(document.getElementById("reqCount").value);
+        const btn = document.getElementById("startBtn");
+        const grid = document.getElementById("dotGrid");
+        const valSuccess = document.getElementById("valSuccess");
+        const valError = document.getElementById("valError");
+        const valTime = document.getElementById("valTime");
+        const targetPath = "/";
+
+        btn.disabled = true;
+        btn.textContent = "RUNNING...";
+        grid.innerHTML = "";
+        valSuccess.textContent = "0";
+        valError.textContent = "0";
+        valTime.textContent = "0";
+
+        let successCount = 0;
+        let errorCount = 0;
+        const dots = [];
+
+        for (let i = 0; i < reqCount; i++) {
+          const dot = document.createElement("div");
+          dot.className = "load-dot";
+          grid.appendChild(dot);
+          dots.push(dot);
+        }
+
+        const startTime = performance.now();
+        const promises = [];
+
+        for (let i = 0; i < reqCount; i++) {
+          dots[i].classList.add("loading");
+          const url = `${targetPath}?random=${Math.random()}&id=${i}`;
+
+          const p = fetch(url, { cache: "no-store" })
+            .then((response) => {
+              if (response.ok) {
+                successCount++;
+                dots[i].className = "load-dot success";
+                valSuccess.textContent = successCount;
+              } else {
+                throw new Error("Server Error");
+              }
+            })
+            .catch(() => {
+              errorCount++;
+              dots[i].className = "load-dot error";
+              valError.textContent = errorCount;
+            });
+
+          promises.push(p);
+        }
+
+        await Promise.allSettled(promises);
+
+        const endTime = performance.now();
+        valTime.textContent = Math.round(endTime - startTime);
+        btn.disabled = false;
+        btn.textContent = "START LOAD TEST";
+      }
+    </script>
   </body>
 </html>
