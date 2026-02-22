@@ -11,6 +11,7 @@
 #include "Connection.h"
 #include "HttpResponse.h"
 #include "Threadpool.h"
+#include "Server.h"
 
 extern "C" {
 #include "third_party/picohttpparser/picohttpparser.h"
@@ -26,9 +27,10 @@ std::string get_mime_type(const std::string& path) {
     return "text/plain";
 }
 
-Connection::Connection(int fd, Eventloop* loop, Threadpool* pool) 
-    : loop_(loop), sock_(new Socket(fd)), chan_(new Channel(loop, fd)), 
-      read_buffer_(), write_buffer_(), is_disconnecting_(false), pool_(pool) {
+Connection::Connection(int fd, Eventloop* loop, Threadpool* pool, Server* server) 
+        : loop_(loop), sock_(new Socket(fd)), chan_(new Channel(loop, fd)), 
+            read_buffer_(), write_buffer_(), is_disconnecting_(false), pool_(pool),
+            server_(server) {
     update_active_time();
     // Register read and write callbacks
     chan_->set_readCallback([this]() { this->handle_read(); });
@@ -42,14 +44,24 @@ Connection::~Connection() {
     delete chan_;
 }
 
-void Connection::handle_read() {
-    update_active_time();
-    
+void Connection::handle_read() {    
     int client_fd = sock_->get_fd();
     int save_errno = 0;
     ssize_t read_bytes;
+    bool has_read_data = false;
+
     while ((read_bytes = read_buffer_.read_fd(client_fd, &save_errno)) > 0) {
         // Read until EAGAIN
+        has_read_data = true;
+    }
+
+    if (has_read_data) {
+        update_active_time();
+
+        auto entry = wheel_entry_.lock();
+        if (entry && server_) {
+            server_->update_connection_timer(entry);
+        }
     }
 
     if (read_bytes == 0) {
@@ -160,6 +172,12 @@ void Connection::process_request() {
 
 void Connection::handle_write() {
     update_active_time();
+    {
+        auto entry = wheel_entry_.lock();
+        if (entry && server_) {
+            server_->update_connection_timer(entry);
+        }
+    }
     bool should_disconnect = false;
     
     {
