@@ -25,6 +25,7 @@ add_library(socket_lib
     src/Buffer.cpp
     src/Threadpool.cpp
     src/EventLoopThreadPool.cpp
+    src/TimingWheel.cpp
     include/third_party/picohttpparser/picohttpparser.c
 )
 target_include_directories(socket_lib PUBLIC include)

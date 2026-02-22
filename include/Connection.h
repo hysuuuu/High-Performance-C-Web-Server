@@ -7,13 +7,12 @@
 #include <chrono>
 
 #include "Buffer.h"
+#include "TimingWheel.h"
 
 class Socket;
 class Channel;
 class Eventloop;
 class Threadpool;
-class Server;
-struct Entry;
 
 /**
  * @class Connection
@@ -48,11 +47,10 @@ private:
 
     std::chrono::steady_clock::time_point last_active_time_;
 
-    Server* server_;      
     std::weak_ptr<Entry> wheel_entry_;
 
 public:
-    Connection(int fd, Eventloop* loop, Threadpool* pool, Server* server = nullptr);
+    Connection(int fd, Eventloop* loop, Threadpool* pool);
     ~Connection();
 
     void update_active_time() {
@@ -73,7 +71,7 @@ public:
     void handle_delete_connection();  
     void set_delete_connection_callback(std::function<void(int)> cb) { delete_connection_callback_ = cb; }  
     
-    void set_wheel_entry(const std::weak_ptr<Entry>& entry) { wheel_entry_ = entry; }
-    std::weak_ptr<Entry> get_wheel_entry() { return wheel_entry_; }
+    void set_wheel_entry(const WeakEntryPtr& entry) { wheel_entry_ = entry; }
+    WeakEntryPtr get_wheel_entry() { return wheel_entry_; }
 
 };

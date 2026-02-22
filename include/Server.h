@@ -4,10 +4,6 @@
 #include <map>
 #include <mutex>
 #include <memory>
-#include <thread>
-#include <atomic>
-#include <unordered_set>
-#include <deque>
 
 #include "Threadpool.h"
 
@@ -33,18 +29,6 @@ class EventLoopThreadPool;
  * from the map and releases resources.
  */
 
-// Timing wheel
-struct Entry {
-    explicit Entry(const std::weak_ptr<Connection>& conn);
-    ~Entry();
-    std::weak_ptr<Connection> conn_;
-};
-
-typedef std::shared_ptr<Entry> EntryPtr;
-typedef std::weak_ptr<Entry> WeakEntryPtr;
-typedef std::unordered_set<EntryPtr> Bucket;
-typedef std::deque<Bucket> TimingWheel;
-
 class Server {
 private:
     Eventloop* loop_;
@@ -57,15 +41,6 @@ private:
 
     std::map<int, std::shared_ptr<Connection>> connection_map_;
 
-    std::thread timer_thread_;
-    std::atomic<bool> stop_timer_;
-
-    // Timing wheel
-    TimingWheel wheel_;
-    std::mutex wheel_mutex_;
-
-    void tick();
-
 public:
     Server(const char* ip, uint16_t port, Eventloop* loop);
     ~Server();
@@ -73,5 +48,4 @@ public:
     void new_connection(int fd);
     void delete_connection(int fd);
 
-    void update_connection_timer(const WeakEntryPtr& weak_entry);
 };

@@ -1,9 +1,13 @@
 #include "Eventloop.h"
 #include "Epoll.h"
 #include "Channel.h"
+#include "Connection.h"
 
-Eventloop::Eventloop() : quit_(false) {
+#include <iostream>
+
+Eventloop::Eventloop() : quit_(false), last_tick_(std::chrono::steady_clock::now()) {
     epoll_ = new Epoll();
+    wheel_.resize(10);
 }
 
 Eventloop::~Eventloop() {
@@ -36,7 +40,43 @@ void Eventloop::loop() {
                 active_ch->handle_event();
             }
         }
+
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_tick_ >= std::chrono::seconds(1)) {
+            tick();
+            last_tick_ = now;
+        }
     }
+}
+
+void Eventloop::tick() {
+    wheel_.push_back(Bucket());
+
+    Bucket& timed_out_bucket = wheel_.front();
+    for (const auto& entryPtr : timed_out_bucket) {
+        if (entryPtr.use_count() == 1) {
+            std::cout << "[Watchdog] Timing Wheel detected timeout" << std::endl;
+        }
+    }
+
+    wheel_.pop_front();
+}
+
+WeakEntryPtr Eventloop::add_connection_timer(const std::shared_ptr<Connection>& conn) {
+    EntryPtr entry = std::make_shared<Entry>(conn);
+    wheel_.back().insert(entry);
+    return WeakEntryPtr(entry);
+}
+
+void Eventloop::update_connection_timer(const WeakEntryPtr& weak_entry) {
+    EntryPtr entry = weak_entry.lock();
+    if (entry) {
+        wheel_.back().insert(entry);
+    }
+}
+
+void Eventloop::tick_once_for_test() {
+    tick();
 }
 
 void Eventloop::update_channel(Channel* ch) {

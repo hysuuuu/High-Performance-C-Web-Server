@@ -11,7 +11,6 @@
 #include "Connection.h"
 #include "HttpResponse.h"
 #include "Threadpool.h"
-#include "Server.h"
 
 extern "C" {
 #include "third_party/picohttpparser/picohttpparser.h"
@@ -27,10 +26,9 @@ std::string get_mime_type(const std::string& path) {
     return "text/plain";
 }
 
-Connection::Connection(int fd, Eventloop* loop, Threadpool* pool, Server* server) 
+Connection::Connection(int fd, Eventloop* loop, Threadpool* pool) 
         : loop_(loop), sock_(new Socket(fd)), chan_(new Channel(loop, fd)), 
-            read_buffer_(), write_buffer_(), is_disconnecting_(false), pool_(pool),
-            server_(server) {
+            read_buffer_(), write_buffer_(), is_disconnecting_(false), pool_(pool) {
     update_active_time();
     // Register read and write callbacks
     chan_->set_readCallback([this]() { this->handle_read(); });
@@ -59,8 +57,8 @@ void Connection::handle_read() {
         update_active_time();
 
         auto entry = wheel_entry_.lock();
-        if (entry && server_) {
-            server_->update_connection_timer(entry);
+        if (entry) {
+            loop_->update_connection_timer(entry);
         }
     }
 
@@ -174,8 +172,8 @@ void Connection::handle_write() {
     update_active_time();
     {
         auto entry = wheel_entry_.lock();
-        if (entry && server_) {
-            server_->update_connection_timer(entry);
+        if (entry) {
+            loop_->update_connection_timer(entry);
         }
     }
     bool should_disconnect = false;
